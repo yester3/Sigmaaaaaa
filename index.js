@@ -1,6 +1,5 @@
 // index.js
-const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
-const crypto = require('crypto');
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 
 const client = new Client({
     intents: [
@@ -12,6 +11,11 @@ const client = new Client({
 
 // Almacén temporal para configuraciones de spam personalizado (en memoria)
 const customSpamStore = new Map();
+
+// Generador de ID simple
+function generateId() {
+    return Date.now().toString(36) + Math.random().toString(36).substring(2, 10);
+}
 
 // ====== MENSAJES POR DEFECTO PARA /SPAM ======
 const SPAM_TITLE = `⬛️ ◾️ ﷽﷽﷽﷽﷽﷽﷽﷽﷽﷽﷽﷽﷽﷽ ◾️ ⬛️`;
@@ -76,111 +80,103 @@ client.on('interactionCreate', async interaction => {
 
     // ----- COMANDO /CUSTOMSPAM -----
     if (interaction.isChatInputCommand() && interaction.commandName === 'customspam') {
-        const select = new StringSelectMenuBuilder()
-            .setCustomId('customspam_type')
-            .setPlaceholder('❔ Choose message type...')
-            .addOptions(
-                new StringSelectMenuOptionBuilder()
-                    .setLabel('Embed')
-                    .setDescription('☁️ Customize title, description, color, and more')
-                    .setValue('embed')
-                    .setEmoji('⬛️'),
-                new StringSelectMenuOptionBuilder()
-                    .setLabel('Plain Message')
-                    .setDescription('❕ Just a simple text message')
-                    .setValue('message')
-                    .setEmoji('◽️')
+        const embed = new EmbedBuilder()
+            .setTitle('⬛️ Custom Spam Setup ◾️')
+            .setDescription('☁️ Choose the type of spam you want to configure:')
+            .setColor(0x000000);
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setCustomId('custom_choose_embed')
+                    .setLabel('⬛️ Embed')
+                    .setStyle(ButtonStyle.Secondary),
+                new ButtonBuilder()
+                    .setCustomId('custom_choose_message')
+                    .setLabel('◽️ Plain Message')
+                    .setStyle(ButtonStyle.Secondary)
             );
 
-        const row = new ActionRowBuilder().addComponents(select);
-
-        await interaction.reply({
-            content: '☁️ **Select the type of spam you want to customize:**',
-            components: [row],
-            ephemeral: true
-        });
+        await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
     }
 
-    // ----- SELECT MENU: TIPO DE SPAM -----
-    if (interaction.isStringSelectMenu() && interaction.customId === 'customspam_type') {
-        const choice = interaction.values[0];
+    // ----- BOTÓN: ELEGIR EMBED -----
+    if (interaction.isButton() && interaction.customId === 'custom_choose_embed') {
+        const modal = new ModalBuilder()
+            .setCustomId('custom_modal_embed')
+            .setTitle('⬛️ Custom Embed Spam');
 
-        if (choice === 'embed') {
-            const modal = new ModalBuilder()
-                .setCustomId('customspam_modal_embed')
-                .setTitle('⬛️ Custom Embed Spam');
+        const titleInput = new TextInputBuilder()
+            .setCustomId('embed_title')
+            .setLabel('Title')
+            .setPlaceholder('Enter the embed title...')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setMaxLength(256);
 
-            const titleInput = new TextInputBuilder()
-                .setCustomId('embed_title')
-                .setLabel('Title')
-                .setPlaceholder('Enter the embed title...')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(true)
-                .setMaxLength(256);
+        const descriptionInput = new TextInputBuilder()
+            .setCustomId('embed_description')
+            .setLabel('Description')
+            .setPlaceholder('Enter the embed description...')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+            .setMaxLength(4000);
 
-            const descriptionInput = new TextInputBuilder()
-                .setCustomId('embed_description')
-                .setLabel('Description')
-                .setPlaceholder('Enter the embed description...')
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true)
-                .setMaxLength(4000);
+        const colorInput = new TextInputBuilder()
+            .setCustomId('embed_color')
+            .setLabel('Color (hex)')
+            .setPlaceholder('FFFFFF for white, 000000 for black...')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+            .setMaxLength(7)
+            .setValue('FFFFFF');
 
-            const colorInput = new TextInputBuilder()
-                .setCustomId('embed_color')
-                .setLabel('Color (hex)')
-                .setPlaceholder('FFFFFF for white, 000000 for black...')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(false)
-                .setMaxLength(7)
-                .setValue('FFFFFF');
+        const footerInput = new TextInputBuilder()
+            .setCustomId('embed_footer')
+            .setLabel('Footer')
+            .setPlaceholder('Enter footer text (optional)...')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+            .setMaxLength(2048);
 
-            const footerInput = new TextInputBuilder()
-                .setCustomId('embed_footer')
-                .setLabel('Footer')
-                .setPlaceholder('Enter footer text (optional)...')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(false)
-                .setMaxLength(2048);
+        const thumbnailInput = new TextInputBuilder()
+            .setCustomId('embed_thumbnail')
+            .setLabel('Thumbnail URL (optional)')
+            .setPlaceholder('https://example.com/image.png')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+            .setMaxLength(2048);
 
-            const thumbnailInput = new TextInputBuilder()
-                .setCustomId('embed_thumbnail')
-                .setLabel('Thumbnail URL (optional)')
-                .setPlaceholder('https://example.com/image.png')
-                .setStyle(TextInputStyle.Short)
-                .setRequired(false)
-                .setMaxLength(2048);
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(titleInput),
+            new ActionRowBuilder().addComponents(descriptionInput),
+            new ActionRowBuilder().addComponents(colorInput),
+            new ActionRowBuilder().addComponents(footerInput),
+            new ActionRowBuilder().addComponents(thumbnailInput)
+        );
 
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(titleInput),
-                new ActionRowBuilder().addComponents(descriptionInput),
-                new ActionRowBuilder().addComponents(colorInput),
-                new ActionRowBuilder().addComponents(footerInput),
-                new ActionRowBuilder().addComponents(thumbnailInput)
-            );
+        await interaction.showModal(modal);
+    }
 
-            await interaction.showModal(modal);
-        }
+    // ----- BOTÓN: ELEGIR PLAIN MESSAGE -----
+    if (interaction.isButton() && interaction.customId === 'custom_choose_message') {
+        const modal = new ModalBuilder()
+            .setCustomId('custom_modal_message')
+            .setTitle('◽️ Custom Message Spam');
 
-        if (choice === 'message') {
-            const modal = new ModalBuilder()
-                .setCustomId('customspam_modal_message')
-                .setTitle('◽️ Custom Message Spam');
+        const contentInput = new TextInputBuilder()
+            .setCustomId('message_content')
+            .setLabel('Message Content')
+            .setPlaceholder('Enter your message...')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+            .setMaxLength(2000);
 
-            const contentInput = new TextInputBuilder()
-                .setCustomId('message_content')
-                .setLabel('Message Content')
-                .setPlaceholder('Enter your message...')
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(true)
-                .setMaxLength(2000);
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(contentInput)
+        );
 
-            modal.addComponents(
-                new ActionRowBuilder().addComponents(contentInput)
-            );
-
-            await interaction.showModal(modal);
-        }
+        await interaction.showModal(modal);
     }
 
     // ----- BOTÓN DE SPAM POR DEFECTO -----
@@ -212,8 +208,8 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // ----- MODAL: EMBED PERSONALIZADO (ahora guarda y muestra botón) -----
-    if (interaction.isModalSubmit() && interaction.customId === 'customspam_modal_embed') {
+    // ----- MODAL: EMBED PERSONALIZADO -----
+    if (interaction.isModalSubmit() && interaction.customId === 'custom_modal_embed') {
         await interaction.deferUpdate();
 
         const title = interaction.fields.getTextInputValue('embed_title');
@@ -224,8 +220,8 @@ client.on('interactionCreate', async interaction => {
 
         const colorInt = parseInt(colorHex.replace('#', ''), 16) || 0xFFFFFF;
 
-        // Guardar configuración en el store
-        const configId = crypto.randomUUID();
+        // Guardar configuración
+        const configId = generateId();
         customSpamStore.set(configId, {
             type: 'embed',
             title,
@@ -235,7 +231,7 @@ client.on('interactionCreate', async interaction => {
             thumbnail
         });
 
-        // Crear vista previa
+        // Vista previa
         const previewEmbed = new EmbedBuilder()
             .setTitle(title)
             .setDescription(description)
@@ -254,18 +250,17 @@ client.on('interactionCreate', async interaction => {
         await interaction.editReply({
             content: '☁️ **Your custom embed spam is ready!** ☁️\n⬛️ Preview:',
             embeds: [previewEmbed],
-            components: [row],
-            ephemeral: true
+            components: [row]
         });
     }
 
-    // ----- MODAL: MENSAJE SIMPLE PERSONALIZADO (ahora guarda y muestra botón) -----
-    if (interaction.isModalSubmit() && interaction.customId === 'customspam_modal_message') {
+    // ----- MODAL: MENSAJE SIMPLE PERSONALIZADO -----
+    if (interaction.isModalSubmit() && interaction.customId === 'custom_modal_message') {
         await interaction.deferUpdate();
 
         const content = interaction.fields.getTextInputValue('message_content');
 
-        const configId = crypto.randomUUID();
+        const configId = generateId();
         customSpamStore.set(configId, {
             type: 'message',
             content
@@ -281,8 +276,7 @@ client.on('interactionCreate', async interaction => {
 
         await interaction.editReply({
             content: `◽️ **Your custom message spam is ready!** ◽️\n❔ Preview:\n>>> ${content}`,
-            components: [row],
-            ephemeral: true
+            components: [row]
         });
     }
 
