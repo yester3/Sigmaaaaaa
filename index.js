@@ -60,7 +60,7 @@ client.on('interactionCreate', async interaction => {
                     .setStyle(ButtonStyle.Secondary)
             );
 
-        await interaction.reply({ embeds: [embed], components: [row] });
+        await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
     }
 
     if (interaction.isButton() && interaction.customId === 'spam_button') {
@@ -73,7 +73,6 @@ client.on('interactionCreate', async interaction => {
                 .setColor(0xFFFFFF)
                 .setFooter({ text: SPAM_FOOTER });
 
-            // Dispara los 5 mensajes en paralelo con Promise.all (equivalente a asyncio.gather)
             const tasks = Array.from({ length: 5 }, () => interaction.channel.send({ embeds: [spamEmbed] }));
             await Promise.all(tasks);
 
